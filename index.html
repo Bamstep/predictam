@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PredictAM — Predictive Maintenance Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700;900&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #080c10;
+    --panel: #0d1117;
+    --border: #1c2a38;
+    --accent: #00d4ff;
+    --green: #00ff9d;
+    --yellow: #ffd600;
+    --red: #ff3b5c;
+    --text: #c9d8e8;
+    --muted: #4a6278;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Barlow', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 16px;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 38px; height: 38px;
+    border: 2px solid var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo-text {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #fff;
+  }
+
+  .logo-text span { color: var(--accent); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--green);
+    font-size: 12px;
+    font-family: var(--mono);
+  }
+
+  .live-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  /* GRID LAYOUT — mobile first */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  /* 2-col on tablets and up */
+  @media (min-width: 600px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+    .card.span2 { grid-column: span 2; }
+    .card.span3 { grid-column: span 2; }
+  }
+
+  /* 3-col on desktop */
+  @media (min-width: 960px) {
+    .grid { grid-template-columns: 1fr 1fr 1fr; }
+    .card.span2 { grid-column: span 2; }
+    .card.span3 { grid-column: span 3; }
+  }
+
+  /* CARD */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 18px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.4;
+  }
+
+  .card-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  /* STAT CARDS */
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 48px;
+    font-weight: 400;
+    line-height: 1;
+    color: #fff;
+    transition: color 0.4s;
+    word-break: break-all;
+  }
+
+  .stat-unit {
+    font-size: 16px;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  .stat-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 8px;
+    font-family: var(--mono);
+    word-break: break-word;
+  }
+
+  .stat-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 12px;
+    overflow: hidden;
+  }
+
+  .stat-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease, background 0.5s ease;
+  }
+
+  /* GAUGE */
+  .gauge-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .gauge-wrap {
+    position: relative;
+    width: 180px;
+    height: 100px;
+  }
+
+  #gaugeCanvas {
+    width: 180px;
+    height: 100px;
+  }
+
+  .gauge-needle {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    height: 82px;
+    background: linear-gradient(to top, #fff, rgba(255,255,255,0.2));
+    transform-origin: bottom center;
+    transform: translateX(-50%) rotate(-90deg);
+    transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border-radius: 2px 2px 0 0;
+  }
+
+  .gauge-needle::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 8px rgba(255,255,255,0.6);
+  }
+
+  .risk-label {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-align: center;
+    transition: color 0.4s;
+  }
+
+  .risk-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* CHART */
+  .chart-area {
+    position: relative;
+    height: 140px;
+    overflow: hidden;
+  }
+
+  #vibChart {
+    width: 100%;
+    height: 100%;
+  }
+
+  .chart-threshold {
+    position: absolute;
+    left: 0; right: 0;
+    border-top: 1px dashed;
+    pointer-events: none;
+  }
+
+  .threshold-label {
+    position: absolute;
+    right: 4px;
+    font-family: var(--mono);
+    font-size: 9px;
+    transform: translateY(-10px);
+  }
+
+  /* AI SUGGESTION */
+  .suggestion-box {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 8px;
+    background: rgba(0,0,0,0.3);
+    transition: border-color 0.4s;
+  }
+
+  .suggestion-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .suggestion-icon {
+    font-size: 24px;
+  }
+
+  .suggestion-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    transition: color 0.4s;
+    line-height: 1.2;
+  }
+
+  .suggestion-detail {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.7;
+    font-family: var(--mono);
+  }
+
+  .suggestion-confidence {
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .conf-bar {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .conf-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s, background 0.5s;
+  }
+
+  /* ALERT LOG */
+  .alert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .alert-list::-webkit-scrollbar { width: 3px; }
+  .alert-list::-webkit-scrollbar-track { background: transparent; }
+  .alert-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.2);
+    border-left: 3px solid;
+    animation: slideIn 0.3s ease;
+    line-height: 1.5;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .alert-item.low { border-color: var(--green); }
+  .alert-item.moderate { border-color: var(--yellow); }
+  .alert-item.high { border-color: var(--red); }
+
+  .alert-time { color: var(--muted); min-width: 68px; }
+  .alert-msg { color: var(--text); }
+
+  /* CONTROLS */
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 4px;
+  }
+
+  .btn {
+    padding: 10px 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    min-height: 44px;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.active { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover { background: var(--red); color: #fff; }
+
+  /* SCENARIO selector */
+  .scenario-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚙️</div>
+      <div>
+        <div class="logo-text">Predict<span>AM</span></div>
+        <div style="font-size:10px; color:var(--muted); letter-spacing:2px; font-family:var(--mono)">PREDICTIVE MAINTENANCE SYSTEM</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge"><div class="live-dot"></div> LIVE FEED</div>
+      <div id="clock">--:--:--</div>
+      <div>UNIT: PUMP-07</div>
+    </div>
+  </header>
+
+  <!-- MAIN GRID -->
+  <div class="grid">
+
+    <!-- Vibration Amplitude -->
+    <div class="card">
+      <div class="card-label">Vibration Amplitude</div>
+      <div class="stat-value" id="vibVal">0.00<span class="stat-unit">mm/s</span></div>
+      <div class="stat-sub" id="vibDelta">Δ —</div>
+      <div class="stat-bar"><div class="stat-bar-fill" id="vibBar" style="width:0%; background:var(--green);"></div></div>
+    </div>
+
+    <!-- Temperature -->
+    <div class="card">
+      <div class="card-label">Bearing Temperature</div>
+      <div class="stat-value" id="tempVal">0<span class="stat-unit">°C</span></div>
+      <div class="stat-sub" id="tempSub">Friction index: —</div>
+      <div class="stat-bar"><div class="stat-bar-fill" id="tempBar" style="width:0%; background:var(--green);"></div></div>
+    </div>
+
+    <!-- Risk Gauge -->
+    <div class="card" style="grid-row: span 2;">
+      <div class="card-label">Risk Assessment</div>
+      <div class="gauge-container">
+        <div class="gauge-wrap">
+          <canvas id="gaugeCanvas" width="360" height="200"></canvas>
+          <div class="gauge-needle" id="gaugeNeedle"></div>
+        </div>
+        <div class="risk-label" id="riskLabel">LOW</div>
+        <div class="risk-sub" id="riskScore">RISK SCORE: 0 / 100</div>
+      </div>
+    </div>
+
+    <!-- RPM -->
+    <div class="card">
+      <div class="card-label">Shaft Speed</div>
+      <div class="stat-value" id="rpmVal">0<span class="stat-unit">RPM</span></div>
+      <div class="stat-sub" id="rpmSub">Nominal: 1450 RPM</div>
+      <div class="stat-bar"><div class="stat-bar-fill" id="rpmBar" style="width:0%; background:var(--green);"></div></div>
+    </div>
+
+    <!-- Fatigue Index -->
+    <div class="card">
+      <div class="card-label">Fatigue Index</div>
+      <div class="stat-value" id="fatigueVal">0<span class="stat-unit">%</span></div>
+      <div class="stat-sub" id="fatigueSub">Structural rigidity: —</div>
+      <div class="stat-bar"><div class="stat-bar-fill" id="fatigueBar" style="width:0%; background:var(--green);"></div></div>
+    </div>
+
+    <!-- Trend Chart -->
+    <div class="card span2">
+      <div class="card-label">Vibration Trend — Last 60 Samples</div>
+      <div class="chart-area">
+        <canvas id="vibChart"></canvas>
+        <!-- threshold lines injected by JS -->
+      </div>
+    </div>
+
+    <!-- AI Suggestion -->
+    <div class="card span2">
+      <div class="card-label">AI Recommendation</div>
+      <div class="suggestion-box" id="suggBox">
+        <div class="suggestion-status">
+          <div class="suggestion-icon" id="suggIcon">🟢</div>
+          <div class="suggestion-title" id="suggTitle">CONTINUE OPERATION</div>
+        </div>
+        <div class="suggestion-detail" id="suggDetail">
+          Vibration levels within normal operating range. Fatigue accumulation is minimal. No immediate action required. Monitor periodically.
+        </div>
+        <div class="suggestion-confidence">
+          <span>AI CONFIDENCE</span>
+          <div class="conf-bar"><div class="conf-fill" id="confFill" style="width:90%; background:var(--green);"></div></div>
+          <span id="confPct">90%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert Log -->
+    <div class="card">
+      <div class="card-label">Event Log</div>
+      <div class="alert-list" id="alertList">
+        <div class="alert-item low">
+          <span class="alert-time">00:00:00</span>
+          <span class="alert-msg">System initialized. Monitoring active.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="card span3">
+      <div class="card-label">Simulation Scenario</div>
+      <div style="margin-top:8px; display:flex; flex-wrap:wrap; align-items:center; gap:16px;">
+        <div class="controls" id="scenarioControls">
+          <span class="scenario-label">MODE:</span>
+          <button class="btn active" onclick="setScenario('normal')">NORMAL OPS</button>
+          <button class="btn" onclick="setScenario('imbalance')">ROTOR IMBALANCE</button>
+          <button class="btn" onclick="setScenario('resonance')">RESONANCE BUILD-UP</button>
+          <button class="btn danger" onclick="setScenario('critical')">CRITICAL FAULT</button>
+        </div>
+        <div style="margin-left:auto;">
+          <button class="btn" onclick="clearLog()">CLEAR LOG</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <span>PredictAM v1.0 · Simulated Sensor Data · For demonstration purposes</span>
+    <span>Built with: Vibration Analysis · ML Threshold Model · Real-time Dashboard</span>
+    <span id="sampleCount">SAMPLES: 0</span>
+  </footer>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let scenario = 'normal';
+let samples = 0;
+let prevVib = 0;
+let fatigueAccum = 0;
+let vibHistory = new Array(60).fill(0);
+let alertCount = 0;
+let lastRiskLevel = 'low';
+
+const THRESHOLDS = { moderate: 4.5, high: 8.0 };
+
+// ─── SCENARIO PROFILES ───────────────────────────────────────────────────────
+const SCENARIOS = {
+  normal:    { vibBase: 1.2,  vibNoise: 0.8,  tempBase: 58,  rpmBase: 1450, rpmNoise: 20  },
+  imbalance: { vibBase: 5.5,  vibNoise: 1.5,  tempBase: 72,  rpmBase: 1480, rpmNoise: 40  },
+  resonance: { vibBase: 7.0,  vibNoise: 2.5,  tempBase: 81,  rpmBase: 1510, rpmNoise: 60  },
+  critical:  { vibBase: 11.5, vibNoise: 3.0,  tempBase: 94,  rpmBase: 1600, rpmNoise: 80  },
+};
+
+// ─── GAUGE CANVAS ────────────────────────────────────────────────────────────
+const gaugeCanvas = document.getElementById('gaugeCanvas');
+const gctx = gaugeCanvas.getContext('2d');
+
+function drawGauge() {
+  const W = 360, H = 200;
+  gctx.clearRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H - 10;
+  const r = 150;
+
+  // Arcs: green (low), yellow (moderate), red (high)
+  const segments = [
+    { from: Math.PI, to: Math.PI * 1.4,  color: '#00ff9d' },
+    { from: Math.PI * 1.4, to: Math.PI * 1.7, color: '#ffd600' },
+    { from: Math.PI * 1.7, to: Math.PI * 2,   color: '#ff3b5c' },
+  ];
+
+  segments.forEach(s => {
+    gctx.beginPath();
+    gctx.arc(cx, cy, r, s.from, s.to);
+    gctx.strokeStyle = s.color;
+    gctx.lineWidth = 18;
+    gctx.globalAlpha = 0.85;
+    gctx.stroke();
+  });
+
+  // Track ring
+  gctx.beginPath();
+  gctx.arc(cx, cy, r - 12, Math.PI, Math.PI * 2);
+  gctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  gctx.lineWidth = 40;
+  gctx.globalAlpha = 1;
+  gctx.stroke();
+
+  // Tick marks
+  for (let i = 0; i <= 10; i++) {
+    const angle = Math.PI + (i / 10) * Math.PI;
+    const inner = r - 26, outer = r - 8;
+    gctx.beginPath();
+    gctx.moveTo(cx + inner * Math.cos(angle), cy + inner * Math.sin(angle));
+    gctx.lineTo(cx + outer * Math.cos(angle), cy + outer * Math.sin(angle));
+    gctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    gctx.lineWidth = i % 5 === 0 ? 2 : 1;
+    gctx.stroke();
+  }
+
+  // Labels
+  const lbls = [['LOW', Math.PI * 1.1], ['MOD', Math.PI * 1.5], ['HIGH', Math.PI * 1.9]];
+  lbls.forEach(([t, a]) => {
+    const tr = r - 50;
+    gctx.font = 'bold 14px Barlow';
+    gctx.fillStyle = 'rgba(255,255,255,0.4)';
+    gctx.textAlign = 'center';
+    gctx.fillText(t, cx + tr * Math.cos(a), cy + tr * Math.sin(a) + 4);
+  });
+
+  gctx.globalAlpha = 1;
+}
+
+drawGauge();
+
+function setNeedle(score) {
+  // score 0–100 → angle -90deg to +90deg
+  const deg = -90 + (score / 100) * 180;
+  document.getElementById('gaugeNeedle').style.transform =
+    `translateX(-50%) rotate(${deg}deg)`;
+}
+
+// ─── CHART ───────────────────────────────────────────────────────────────────
+const chartCanvas = document.getElementById('vibChart');
+const cctx = chartCanvas.getContext('2d');
+
+function drawChart() {
+  const W = chartCanvas.offsetWidth, H = chartCanvas.offsetHeight;
+  chartCanvas.width = W; chartCanvas.height = H;
+
+  const MAX_VIB = 15;
+  const padL = 36, padR = 10, padT = 10, padB = 24;
+  const cw = W - padL - padR, ch = H - padT - padB;
+
+  cctx.clearRect(0, 0, W, H);
+
+  // Background
+  cctx.fillStyle = 'rgba(0,0,0,0.2)';
+  cctx.fillRect(padL, padT, cw, ch);
+
+  // Grid lines
+  [0, 25, 50, 75, 100].forEach(p => {
+    const y = padT + ch - (p / 100) * ch;
+    cctx.beginPath();
+    cctx.moveTo(padL, y); cctx.lineTo(padL + cw, y);
+    cctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    cctx.lineWidth = 1; cctx.stroke();
+    const val = ((p / 100) * MAX_VIB).toFixed(0);
+    cctx.fillStyle = 'rgba(255,255,255,0.2)';
+    cctx.font = '9px Share Tech Mono';
+    cctx.textAlign = 'right';
+    cctx.fillText(val, padL - 4, y + 3);
+  });
+
+  // Threshold lines
+  const drawThreshold = (val, color, label) => {
+    const y = padT + ch - (val / MAX_VIB) * ch;
+    cctx.beginPath();
+    cctx.setLineDash([4, 4]);
+    cctx.moveTo(padL, y); cctx.lineTo(padL + cw, y);
+    cctx.strokeStyle = color;
+    cctx.lineWidth = 1;
+    cctx.globalAlpha = 0.6;
+    cctx.stroke();
+    cctx.setLineDash([]);
+    cctx.globalAlpha = 1;
+    cctx.fillStyle = color;
+    cctx.font = '9px Share Tech Mono';
+    cctx.textAlign = 'left';
+    cctx.fillText(label, padL + 4, y - 3);
+  };
+
+  drawThreshold(THRESHOLDS.moderate, '#ffd600', 'MODERATE ▶ 4.5');
+  drawThreshold(THRESHOLDS.high, '#ff3b5c', 'HIGH ▶ 8.0');
+
+  // Area fill
+  const pts = vibHistory.map((v, i) => ({
+    x: padL + (i / (vibHistory.length - 1)) * cw,
+    y: padT + ch - Math.min(v, MAX_VIB) / MAX_VIB * ch
+  }));
+
+  cctx.beginPath();
+  cctx.moveTo(pts[0].x, padT + ch);
+  pts.forEach(p => cctx.lineTo(p.x, p.y));
+  cctx.lineTo(pts[pts.length - 1].x, padT + ch);
+  cctx.closePath();
+  const grad = cctx.createLinearGradient(0, padT, 0, padT + ch);
+  grad.addColorStop(0, 'rgba(0,212,255,0.25)');
+  grad.addColorStop(1, 'rgba(0,212,255,0.01)');
+  cctx.fillStyle = grad;
+  cctx.fill();
+
+  // Line
+  cctx.beginPath();
+  pts.forEach((p, i) => i === 0 ? cctx.moveTo(p.x, p.y) : cctx.lineTo(p.x, p.y));
+  cctx.strokeStyle = '#00d4ff';
+  cctx.lineWidth = 2;
+  cctx.stroke();
+
+  // Last point glow
+  const lp = pts[pts.length - 1];
+  cctx.beginPath();
+  cctx.arc(lp.x, lp.y, 4, 0, Math.PI * 2);
+  cctx.fillStyle = '#fff';
+  cctx.shadowColor = '#00d4ff';
+  cctx.shadowBlur = 10;
+  cctx.fill();
+  cctx.shadowBlur = 0;
+
+  // X-axis labels
+  cctx.fillStyle = 'rgba(255,255,255,0.2)';
+  cctx.font = '9px Share Tech Mono';
+  cctx.textAlign = 'center';
+  [0, 15, 30, 45, 59].forEach(i => {
+    const x = padL + (i / (vibHistory.length - 1)) * cw;
+    cctx.fillText(`-${59 - i}s`, x, padT + ch + 15);
+  });
+}
+
+// ─── CLOCK ───────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toTimeString().slice(0, 8);
+}
+
+// ─── LOG ─────────────────────────────────────────────────────────────────────
+function addLog(msg, level) {
+  const list = document.getElementById('alertList');
+  const now = new Date().toTimeString().slice(0, 8);
+  const item = document.createElement('div');
+  item.className = `alert-item ${level}`;
+  item.innerHTML = `<span class="alert-time">${now}</span><span class="alert-msg">${msg}</span>`;
+  list.prepend(item);
+  // Keep max 20
+  while (list.children.length > 20) list.removeChild(list.lastChild);
+}
+
+function clearLog() {
+  document.getElementById('alertList').innerHTML = '';
+  addLog('Log cleared by operator.', 'low');
+}
+
+// ─── SCENARIO BUTTON ─────────────────────────────────────────────────────────
+function setScenario(s) {
+  scenario = s;
+  fatigueAccum = s === 'normal' ? 0 : fatigueAccum;
+  document.querySelectorAll('#scenarioControls .btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  const names = { normal:'Normal Ops', imbalance:'Rotor Imbalance', resonance:'Resonance Build-up', critical:'Critical Fault' };
+  addLog(`Scenario changed → ${names[s]}`, s === 'critical' ? 'high' : s === 'normal' ? 'low' : 'moderate');
+}
+
+// ─── COLOR HELPERS ───────────────────────────────────────────────────────────
+function riskColor(level) {
+  return level === 'high' ? 'var(--red)' : level === 'moderate' ? 'var(--yellow)' : 'var(--green)';
+}
+
+function barColor(pct) {
+  if (pct > 75) return 'var(--red)';
+  if (pct > 50) return 'var(--yellow)';
+  return 'var(--green)';
+}
+
+// ─── MAIN UPDATE LOOP ────────────────────────────────────────────────────────
+function update() {
+  samples++;
+  const s = SCENARIOS[scenario];
+
+  // Generate vibration with noise
+  const vib = Math.max(0, s.vibBase + (Math.random() - 0.5) * s.vibNoise);
+  const temp = Math.round(s.tempBase + (Math.random() - 0.5) * 6);
+  const rpm = Math.round(s.rpmBase + (Math.random() - 0.5) * s.rpmNoise);
+
+  // Fatigue accumulates with vibration
+  fatigueAccum += (vib / 12) * 0.3;
+  if (fatigueAccum > 100) fatigueAccum = 100;
+  if (scenario === 'normal') fatigueAccum = Math.max(0, fatigueAccum - 0.05);
+  const fatigue = Math.min(100, Math.round(fatigueAccum));
+
+  // Risk score
+  const vibScore = Math.min(100, (vib / 12) * 60);
+  const tempScore = Math.min(100, ((temp - 55) / 50) * 20);
+  const fatScore = fatigue * 0.2;
+  const riskScore = Math.min(100, Math.round(vibScore + tempScore + fatScore));
+
+  const riskLevel = riskScore >= 65 ? 'high' : riskScore >= 35 ? 'moderate' : 'low';
+
+  // Update history
+  vibHistory.push(vib);
+  if (vibHistory.length > 60) vibHistory.shift();
+
+  // ── DOM Updates ──
+
+  // Vibration
+  const delta = vib - prevVib;
+  document.getElementById('vibVal').innerHTML = `${vib.toFixed(2)}<span class="stat-unit">mm/s</span>`;
+  document.getElementById('vibDelta').textContent = `Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(2)} mm/s`;
+  const vibPct = Math.min(100, (vib / 12) * 100);
+  document.getElementById('vibBar').style.width = vibPct + '%';
+  document.getElementById('vibBar').style.background = barColor(vibPct);
+  prevVib = vib;
+
+  // Temp
+  document.getElementById('tempVal').innerHTML = `${temp}<span class="stat-unit">°C</span>`;
+  const tempPct = Math.min(100, ((temp - 40) / 70) * 100);
+  const frictionIdx = temp > 85 ? 'HIGH' : temp > 70 ? 'ELEVATED' : 'NORMAL';
+  document.getElementById('tempSub').textContent = `Friction index: ${frictionIdx}`;
+  document.getElementById('tempBar').style.width = tempPct + '%';
+  document.getElementById('tempBar').style.background = barColor(tempPct);
+
+  // RPM
+  document.getElementById('rpmVal').innerHTML = `${rpm}<span class="stat-unit">RPM</span>`;
+  const rpmPct = Math.min(100, (rpm / 1800) * 100);
+  document.getElementById('rpmBar').style.width = rpmPct + '%';
+  document.getElementById('rpmBar').style.background = barColor(Math.abs(rpm - 1450) / 4);
+  document.getElementById('rpmSub').textContent = `Deviation: ${rpm - 1450 > 0 ? '+' : ''}${rpm - 1450} RPM`;
+
+  // Fatigue
+  document.getElementById('fatigueVal').innerHTML = `${fatigue}<span class="stat-unit">%</span>`;
+  document.getElementById('fatigueBar').style.width = fatigue + '%';
+  document.getElementById('fatigueBar').style.background = barColor(fatigue);
+  const rigidity = fatigue > 70 ? 'CRITICALLY LOW' : fatigue > 40 ? 'REDUCED' : 'NOMINAL';
+  document.getElementById('fatigueSub').textContent = `Structural rigidity: ${rigidity}`;
+
+  // Gauge
+  setNeedle(riskScore);
+  const rc = riskColor(riskLevel);
+  document.getElementById('riskLabel').textContent = riskLevel.toUpperCase();
+  document.getElementById('riskLabel').style.color = rc;
+  document.getElementById('riskScore').textContent = `RISK SCORE: ${riskScore} / 100`;
+
+  // AI Suggestion
+  const suggMap = {
+    low: {
+      icon: '🟢',
+      title: 'CONTINUE OPERATION',
+      detail: `Vibration within safe limits (${vib.toFixed(2)} mm/s). No structural risk detected. Fatigue index at ${fatigue}%. System performance nominal.`,
+      conf: 92,
+      borderColor: 'var(--green)',
+    },
+    moderate: {
+      icon: '🟡',
+      title: 'SCHEDULE MAINTENANCE',
+      detail: `Elevated vibration detected (${vib.toFixed(2)} mm/s). Bearing temperature at ${temp}°C. Recommend inspection within 24 hours. Reduce load by 15%.`,
+      conf: 78,
+      borderColor: 'var(--yellow)',
+    },
+    high: {
+      icon: '🔴',
+      title: 'STOP OPERATION — IMMEDIATE',
+      detail: `CRITICAL: Vibration at ${vib.toFixed(2)} mm/s exceeds safe threshold. Fatigue index ${fatigue}%. Risk of component failure. Shut down and inspect immediately.`,
+      conf: 96,
+      borderColor: 'var(--red)',
+    },
+  };
+
+  const sugg = suggMap[riskLevel];
+  document.getElementById('suggIcon').textContent = sugg.icon;
+  document.getElementById('suggTitle').textContent = sugg.title;
+  document.getElementById('suggTitle').style.color = rc;
+  document.getElementById('suggDetail').textContent = sugg.detail;
+  document.getElementById('confFill').style.width = sugg.conf + '%';
+  document.getElementById('confFill').style.background = rc;
+  document.getElementById('confPct').textContent = sugg.conf + '%';
+  document.getElementById('suggBox').style.borderColor = sugg.borderColor;
+
+  // Log on level change
+  if (riskLevel !== lastRiskLevel) {
+    const msgs = {
+      low: `Risk returned to LOW (score: ${riskScore}).`,
+      moderate: `⚠ Risk escalated to MODERATE — vib: ${vib.toFixed(2)} mm/s, temp: ${temp}°C.`,
+      high: `🚨 CRITICAL RISK — immediate stop recommended. Score: ${riskScore}.`,
+    };
+    addLog(msgs[riskLevel], riskLevel);
+    lastRiskLevel = riskLevel;
+  }
+
+  // Occasional log entries
+  if (samples % 15 === 0) {
+    addLog(`Periodic check — vib: ${vib.toFixed(2)} mm/s, RPM: ${rpm}, fatigue: ${fatigue}%`, riskLevel);
+  }
+
+  document.getElementById('sampleCount').textContent = `SAMPLES: ${samples}`;
+
+  // Chart
+  drawChart();
+}
+
+// ─── START ────────────────────────────────────────────────────────────────────
+setInterval(update, 1200);
+setInterval(updateClock, 1000);
+updateClock();
+drawChart();
+</script>
+</body>
+</html>
